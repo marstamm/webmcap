@@ -1,4 +1,6 @@
 import m from "mithril";
+import { Muxer, ArrayBufferTarget } from 'webm-muxer';
+
 import { App, Recording, RenderOptions } from "../gifcap";
 import Button from "../components/button";
 import View from "../components/view";
@@ -15,7 +17,6 @@ export default class RenderView implements m.ClassComponent<RenderViewAttrs> {
   private readonly renderOptions: RenderOptions;
 
   private progress = 0;
-  private _onbeforeremove: Function | undefined;
 
   constructor(vnode: m.CVnode<RenderViewAttrs>) {
     this.app = vnode.attrs.app;
@@ -24,35 +25,34 @@ export default class RenderView implements m.ClassComponent<RenderViewAttrs> {
   }
 
   async oncreate(vnode: m.VnodeDOM<RenderViewAttrs, this>) {
-    const gif = new GifEncoder({
-      width: this.renderOptions.crop.width,
-      height: this.renderOptions.crop.height,
-    });
-
-    gif.on("progress", (progress) => {
-      this.progress = progress;
-      m.redraw();
-    });
-
-    gif.once("finished", (blob) => {
-      const url = URL.createObjectURL(blob);
-      const duration =
-        this.recording.frames[this.renderOptions.trim.end].timestamp -
-        this.recording.frames[this.renderOptions.trim.start].timestamp +
-        this.app.frameLength;
-
-      this.app.finishRendering({ blob, url, duration, size: blob.size });
-    });
 
     const ctx = vnode.dom.getElementsByTagName("canvas")[0].getContext("2d")!;
 
-    const processFrame = (index: number) => {
-      if (index > this.renderOptions.trim.end) {
-        this._onbeforeremove = () => gif.abort();
-        gif.render();
-        return;
-      }
+    let muxer = new Muxer({
+        target: new ArrayBufferTarget(),
+        video: {
+            codec: 'V_VP9',
+            width: this.renderOptions.crop.width,
+            height: this.renderOptions.crop.height
+        }
+    });
+  
+    let videoEncoder = new VideoEncoder({
+        output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
+        error: e => console.error(e)
+    });
 
+    videoEncoder.configure({
+        codec: 'vp09.00.10.08',
+        width: this.renderOptions.crop.width,
+        height: this.renderOptions.crop.height,
+        bitrate: 1e6
+    });
+
+
+    const frameLengthInMicroSeconds = this.app.frameLength * 1000
+
+    for(let index = this.renderOptions.trim.start; index <= this.renderOptions.trim.end; index++) {
       const frame = this.recording.frames[index];
       let imageData = frame.imageData;
 
@@ -67,15 +67,30 @@ export default class RenderView implements m.ClassComponent<RenderViewAttrs> {
         this.renderOptions.crop.height
       );
 
-      const delay =
-        index < this.renderOptions.trim.end
-          ? this.recording.frames[index + 1].timestamp - frame.timestamp
-          : this.app.frameLength;
-      gif.addFrame(imageData, delay);
-      setTimeout(() => processFrame(index + 1), 0);
-    };
+     const bitmap = await createImageBitmap(imageData)
+     const videoFrame = new VideoFrame(bitmap, {
+        timestamp: frameLengthInMicroSeconds * (index - this.renderOptions.trim.start), 
+        duration: frameLengthInMicroSeconds
+      })
 
-    processFrame(this.renderOptions.trim.start);
+     videoEncoder.encode(videoFrame)
+    }
+
+    await videoEncoder.flush();
+
+    muxer.finalize();
+    let  buffer = muxer.target.buffer; 
+    
+    const blob = new Blob([buffer]);
+    
+    const webmURL = window.URL.createObjectURL(blob);
+
+    const duration =
+      this.recording.frames[this.renderOptions.trim.end].timestamp -
+      this.recording.frames[this.renderOptions.trim.start].timestamp +
+      this.app.frameLength;
+
+    this.app.finishRendering({ blob, url: webmURL, duration, size: blob.size });
   }
 
   view() {
@@ -102,7 +117,4 @@ export default class RenderView implements m.ClassComponent<RenderViewAttrs> {
     ];
   }
 
-  onbeforeremove(): void {
-    this._onbeforeremove && this._onbeforeremove();
-  }
 }

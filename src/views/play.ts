@@ -36,7 +36,7 @@ export default class PlayView implements m.ClassComponent<PlayViewAttrs> {
     const download = `Recording ${pad(now.getFullYear(), 4)}-${pad(now.getMonth() + 1, 2)}-${pad(
       now.getDate(),
       2
-    )} at ${pad(now.getHours(), 2)}.${pad(now.getMinutes(), 2)}.${pad(now.getSeconds(), 2)}.gif`;
+    )} at ${pad(now.getHours(), 2)}.${pad(now.getMinutes(), 2)}.${pad(now.getSeconds(), 2)}.webm`;
 
     const actions = [
       m(Button, {
@@ -73,7 +73,7 @@ export default class PlayView implements m.ClassComponent<PlayViewAttrs> {
               download,
               target: "_blank",
             },
-            [m("img.recording", { src: this.gif.url })]
+            [m("video.recording", { src: this.gif.url, autoplay: true })]
           ),
           m("footer", [
             m(Timer, { duration: this.gif.duration }),
