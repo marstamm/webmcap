@@ -53,15 +53,12 @@ export default class RecordView implements m.ClassComponent<RecordViewAttrs> {
       }
 
       ctx.drawImage(video, 0, 0);
-      requestAnimationFrame(() => {
-        const imageData = ctx.getImageData(0, 0, this.width, this.height);
+      const imageData = ctx.getImageData(0, 0, this.width, this.height);
 
-        this.frames.push({
-          imageData,
-          timestamp: first ? 0 : Date.now() - this.startTime,
-        });
-      })
-
+      this.frames.push({
+        imageData,
+        timestamp: first ? 0 : Date.now() - this.startTime,
+      });
     };
 
     const redrawInterval = setInterval(() => m.redraw(), this.app.frameLength);
