@@ -29,30 +29,30 @@ export default class RenderView implements m.ClassComponent<RenderViewAttrs> {
     const ctx = vnode.dom.getElementsByTagName("canvas")[0].getContext("2d")!;
 
     let muxer = new Muxer({
-        target: new ArrayBufferTarget(),
-        video: {
-            codec: 'V_VP9',
-            width: this.renderOptions.crop.width,
-            height: this.renderOptions.crop.height
-        }
+      target: new ArrayBufferTarget(),
+      video: {
+        codec: 'V_VP9',
+        width: this.renderOptions.crop.width,
+        height: this.renderOptions.crop.height
+      }
     });
-  
+
     let videoEncoder = new VideoEncoder({
-        output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
-        error: e => console.error(e)
+      output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
+      error: e => console.error(e)
     });
 
     videoEncoder.configure({
-        codec: 'vp09.00.10.08',
-        width: this.renderOptions.crop.width,
-        height: this.renderOptions.crop.height,
-        bitrate: 1e6
+      codec: 'vp09.00.10.08',
+      width: this.renderOptions.crop.width,
+      height: this.renderOptions.crop.height,
+      bitrate: 1e6
     });
 
 
     const frameLengthInMicroSeconds = this.app.frameLength * 1000
 
-    for(let index = this.renderOptions.trim.start; index <= this.renderOptions.trim.end; index++) {
+    for (let index = this.renderOptions.trim.start; index <= this.renderOptions.trim.end; index++) {
       const frame = this.recording.frames[index];
       let imageData = frame.imageData;
 
@@ -67,22 +67,22 @@ export default class RenderView implements m.ClassComponent<RenderViewAttrs> {
         this.renderOptions.crop.height
       );
 
-     const bitmap = await createImageBitmap(imageData)
-     const videoFrame = new VideoFrame(bitmap, {
-        timestamp: frameLengthInMicroSeconds * (index - this.renderOptions.trim.start), 
+      const bitmap = await createImageBitmap(imageData)
+      const videoFrame = new VideoFrame(bitmap, {
+        timestamp: frameLengthInMicroSeconds * (index - this.renderOptions.trim.start),
         duration: frameLengthInMicroSeconds
-      })
+      });
 
-     videoEncoder.encode(videoFrame)
+      videoEncoder.encode(videoFrame);
     }
 
     await videoEncoder.flush();
 
     muxer.finalize();
-    let  buffer = muxer.target.buffer; 
-    
+    let buffer = muxer.target.buffer;
+
     const blob = new Blob([buffer]);
-    
+
     const webmURL = window.URL.createObjectURL(blob);
 
     const duration =
